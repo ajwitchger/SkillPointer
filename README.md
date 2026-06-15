@@ -18,6 +18,8 @@ SkillPointer is an **organizational pattern** for AI development agents (OpenCod
 
 It works **with** the native skill system, not against it - using skills to optimize skills.
 
+Forked from [blacksiders/SkillPointer](https://github.com/blacksiders/SkillPointer). This fork preserves upstream MIT attribution and includes additional changes by Andrew Witchger.
+
 ---
 
 ## <img src="assets/icons/icon-stop.svg" width="24" height="24" align="center" alt="Stop"> The "Token Tax" Problem
