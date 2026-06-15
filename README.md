@@ -9,11 +9,12 @@
   [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
   [![OpenCode Compatible](https://img.shields.io/badge/OpenCode-compatible-38bdf8.svg)](https://opencode.ai)
   [![Claude Code Compatible](https://img.shields.io/badge/Claude%20Code-compatible-38bdf8.svg)](https://docs.anthropic.com/en/docs/claude-code)
+  [![Cursor Compatible](https://img.shields.io/badge/Cursor-compatible-38bdf8.svg)](https://cursor.com)
 </div>
 
 <br/>
 
-SkillPointer is an **organizational pattern** for AI development agents (OpenCode, Claude Code, and others) that solves a specific scaling problem: when you have hundreds or thousands of skills installed, the startup token cost becomes massive.
+SkillPointer is an **organizational pattern** for AI development agents (OpenCode, Claude Code, Cursor, and others) that solves a specific scaling problem: when you have hundreds or thousands of skills installed, the startup token cost becomes massive.
 
 It works **with** the native skill system, not against it - using skills to optimize skills.
 
@@ -21,7 +22,7 @@ It works **with** the native skill system, not against it - using skills to opti
 
 ## <img src="assets/icons/icon-stop.svg" width="24" height="24" align="center" alt="Stop"> The "Token Tax" Problem
 
-AI agents like OpenCode and Claude Code use a [**3-level progressive disclosure**](https://opencode.ai/docs/skills) system to load skills:
+AI agents like OpenCode, Claude Code, and Cursor use a [**3-level progressive disclosure**](https://opencode.ai/docs/skills) system to load skills:
 
 | Level | When | What Loads |
 |---|---|---|
@@ -60,7 +61,7 @@ SkillPointer works *with* the native skill system by reorganizing your library:
 
 1. **Hidden Vault Storage:** It moves all raw skills into an isolated directory (`~/.opencode-skill-libraries/`). The agent's startup scanner cannot see them here - so they don't appear in `<available_skills>`.
 2. **Category Pointers:** It replaces 2,000 skills with ~35 lightweight "Pointer Skills" in your active `skills/` directory (e.g., `security-category-pointer`). Each pointer is a native `SKILL.md` that indexes an entire category.
-3. **Dynamic Retrieval:** When you ask a question, the AI matches the relevant category pointer. The pointer instructs the AI to use its **native tools** (`list_dir`, `view_file`) to browse the hidden vault and read the exact skill file it needs.
+3. **Dynamic Retrieval:** When you ask a question, the AI matches the relevant category pointer. The pointer instructs the AI to use its **native tools** (e.g. `list_dir`/`view_file` on OpenCode, `Glob`/`Read` on Cursor) to browse the hidden vault and read the exact skill file it needs.
 
 ### Real Measured Results
 
@@ -83,22 +84,62 @@ A zero-dependency Python script that converts your skills directory into a Hiera
 ### Step 1: Run the Setup Script
 Download and run `setup.py`. It automatically categorizes your skills into expert domains (e.g., `ai-ml`, `security`, `frontend`, `automation`) using a keyword heuristic engine.
 
-By default, the script targets OpenCode. You can specify Claude Code using the `--agent` flag:
+On first run, **select your agent** from the interactive menu (OpenCode, Claude Code, or Cursor). There is no implicit default — you must choose explicitly.
 
-**For OpenCode:**
 ```bash
+# Interactive (recommended for first-time setup)
 python setup.py
-# Targets: ~/.config/opencode/skills
-# Vault: ~/.opencode-skill-libraries
+
+# Non-interactive (scripts / CI)
+python setup.py --agent opencode
+python setup.py --agent claude
+python setup.py --agent cursor
 ```
 
-**For Claude Code:**
-```bash
-python setup.py --agent claude
-# Targets: ~/.claude/skills
-# Vault: ~/.skillpointer-vault
-```
+| Agent | Active skills dir | Vault |
+|---|---|---|
+| OpenCode | `~/.config/opencode/skills` | `~/.opencode-skill-libraries` |
+| Claude Code | `~/.claude/skills` | `~/.skillpointer-vault` |
+| Cursor | `~/.cursor/skills` | `~/.cursor-skill-libraries` |
+
 *(Note for Claude Code: The `.skillpointer-vault` directory is intentionally prefixed with a dot so Claude's aggressive file scanner natively skips it during Level 1 context hydration).*
+
+**Cursor limitations (v1):**
+
+1. **Built-in skills** (`~/.cursor/skills-cursor/`) are not moved — Cursor manages them; they remain in Level 1.
+2. **Plugin skills** (`~/.cursor/plugins/cache/.../skills/`) are not moved — installed by marketplace plugins.
+3. **Rules** (`~/.cursor/rules/`, `.cursor/rules/`) are a separate token surface; SkillPointer does not optimize them.
+4. **Sync workflows** (e.g. `cursor-meta-sync`): after SkillPointer runs, synced repo skills will live in the vault, not `~/.cursor/skills/` — re-sync or adjust your workflow if you rely on bidirectional home↔repo skill mirroring.
+5. **Restore**: there is no undo command today — **back up `~/.cursor/skills` before your first run**.
+
+Non-interactive environments must pass `--agent`; piped or CI runs without it exit with an error instead of defaulting to any agent.
+
+### Maintaining your library
+
+After the first run, use these commands to keep pointers in sync with your vault:
+
+```bash
+# Full re-run (same as first-time install)
+python setup.py install --agent cursor
+python setup.py --agent cursor                    # install is the default command
+
+# Reorganized vault manually or added skills directly to the vault
+python setup.py refresh-pointers --agent cursor
+
+# Added new skills to the active skills dir (migrate + refresh pointers)
+python setup.py migrate --agent cursor
+
+# Migrate only, then refresh once after bulk vault edits
+python setup.py migrate --agent cursor --no-refresh-pointers
+python setup.py refresh-pointers --agent cursor
+```
+
+| Situation | Command |
+|---|---|
+| Moved skills between vault categories | `refresh-pointers` |
+| Added skills to `~/.cursor/skills` (or agent active dir) | `migrate` or `install` |
+| Added skills directly into the vault | `refresh-pointers` |
+| Emptied or removed a vault category | `refresh-pointers` (stale pointers are removed automatically) |
 
 ### Step 2: Test It!
 Start your AI agent and ask it to fetch a specific skill:
@@ -106,7 +147,7 @@ Start your AI agent and ask it to fetch a specific skill:
 
 Watch the execution logs:
 1. The AI reads the pointer (Level 2 load - just the pointer body).
-2. The AI uses its native `list_dir` to browse the hidden vault.
+2. The AI browses the hidden vault with native file tools (`list_dir` on OpenCode, `Glob`/`Read` on Cursor).
 3. The AI reads *only* the specific skill file it needs.
 4. It generates expert-level code.
 
@@ -116,9 +157,9 @@ Watch the execution logs:
 
 If you prefer to set this up manually without the `setup.py` script:
 
-1. Create a hidden library directory (e.g., `~/.opencode-skill-libraries/animation`)
+1. Create a hidden library directory (e.g., `~/.opencode-skill-libraries/animation`, `~/.cursor-skill-libraries/animation`, or `~/.skillpointer-vault/animation`)
 2. Place your actual skill folders inside that directory.
-3. Create a `SKILL.md` Pointer File inside your active `~/.config/opencode/skills/animation-category-pointer/` directory that tells the AI where to look. (See the setup script for the optimal pointer prompt formula).
+3. Create a `SKILL.md` pointer inside your active skills directory (e.g., `~/.config/opencode/skills/animation-category-pointer/`, `~/.cursor/skills/animation-category-pointer/`, or `~/.claude/skills/animation-category-pointer/`) that tells the AI where to look. (See the setup script for the optimal pointer prompt formula).
 
 ---
 
@@ -155,7 +196,7 @@ It's not about capability - it's about efficiency. Every token in `<available_sk
 <summary><b>"How is retrieval different from the native skill tool?"</b></summary>
 <br>
 
-The native `skill()` tool loads a skill the AI already knows about (from Level 1). SkillPointer pointers instruct the AI to use `list_dir` and `view_file` to *discover* skills it doesn't know about yet - browsing the hidden vault to find the exact file. It's a different retrieval path that bypasses the need for all skills to be in Level 1.
+The native `skill()` tool loads a skill the AI already knows about (from Level 1). SkillPointer pointers instruct the AI to use file-browsing tools (`list_dir`/`view_file` on OpenCode, `Glob`/`Read` on Cursor) to *discover* skills it doesn't know about yet - browsing the hidden vault to find the exact file. It's a different retrieval path that bypasses the need for all skills to be in Level 1.
 </details>
 
 ---
