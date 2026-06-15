@@ -92,8 +92,8 @@ python setup.py
 
 # Non-interactive (scripts / CI)
 python setup.py --agent opencode
-python setup.py --agent claude
-python setup.py --agent cursor
+python setup.py install --agent claude
+python setup.py --agent cursor install
 ```
 
 | Agent | Active skills dir | Vault |
@@ -121,18 +121,34 @@ After the first run, use these commands to keep pointers in sync with your vault
 ```bash
 # Full re-run (same as first-time install)
 python setup.py install --agent cursor
+python setup.py --agent cursor install
 python setup.py --agent cursor                    # install is the default command
 
 # Reorganized vault manually or added skills directly to the vault
 python setup.py refresh-pointers --agent cursor
+python setup.py --agent cursor refresh-pointers
 
 # Added new skills to the active skills dir (migrate + refresh pointers)
 python setup.py migrate --agent cursor
+python setup.py --agent cursor migrate
 
 # Migrate only, then refresh once after bulk vault edits
 python setup.py migrate --agent cursor --no-refresh-pointers
 python setup.py refresh-pointers --agent cursor
 ```
+
+### Windows launchers
+
+`Install.bat` accepts an optional agent argument:
+
+```bat
+Install.bat
+Install.bat cursor
+Install.bat claude
+Install.bat opencode
+```
+
+Without an argument it keeps the console visible and runs the normal interactive chooser. `Install.vbs` is a visible wrapper around `Install.bat`, forwards the same optional agent argument, and only shows the success dialog when the batch run exits `0`.
 
 | Situation | Command |
 |---|---|

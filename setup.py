@@ -1,4 +1,6 @@
 import os
+import json
+import re
 import shutil
 import sys
 import time
@@ -25,6 +27,9 @@ class Colors:
 
 # Global configuration state (populated by apply_agent_profile before use)
 CONFIG = {}
+POINTER_METADATA_FILENAME = ".skillpointer-pointer.json"
+POINTER_METADATA_VERSION = 1
+POINTER_MANAGER_NAME = "skillpointer"
 
 AGENT_PROFILES = {
     "opencode": {
@@ -711,6 +716,93 @@ def resolve_agent(agent_arg: Optional[str]) -> str:
     return prompt_for_agent()
 
 
+def add_agent_argument(parser) -> None:
+    parser.add_argument(
+        "--agent",
+        choices=list(AGENT_PROFILES.keys()),
+        dest="agent_values",
+        action="append",
+        default=[],
+        help="Target AI agent (skips interactive prompt when provided)",
+    )
+
+
+def build_parser():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="SkillPointer Setup - Infinite Context. Zero Token Tax."
+    )
+    add_agent_argument(parser)
+    subparsers = parser.add_subparsers(dest="command")
+
+    install_parser = subparsers.add_parser(
+        "install",
+        help="Migrate skills from active dir to vault, then refresh pointers (default)",
+    )
+    add_agent_argument(install_parser)
+
+    refresh_parser = subparsers.add_parser(
+        "refresh-pointers",
+        help="Regenerate category pointers from vault (no migration)",
+    )
+    add_agent_argument(refresh_parser)
+
+    migrate_parser = subparsers.add_parser(
+        "migrate",
+        help="Ingest new skills from active dir into vault",
+    )
+    add_agent_argument(migrate_parser)
+    migrate_parser.add_argument(
+        "--no-refresh-pointers",
+        action="store_true",
+        help="Skip pointer refresh after migration",
+    )
+    return parser
+
+
+def normalize_agent_args(parser, args):
+    unique_agents = []
+    for agent in getattr(args, "agent_values", []):
+        if agent not in unique_agents:
+            unique_agents.append(agent)
+
+    if len(unique_agents) > 1:
+        parser.error("conflicting --agent values provided")
+
+    args.agent = unique_agents[0] if unique_agents else None
+    return args
+
+
+def parse_cli_args(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    extracted_agents = []
+    cleaned_argv = []
+    index = 0
+
+    while index < len(argv):
+        token = argv[index]
+        if token == "--agent":
+            if index + 1 >= len(argv):
+                build_parser().error("argument --agent: expected one argument")
+            extracted_agents.append(argv[index + 1])
+            index += 2
+            continue
+        if token.startswith("--agent="):
+            extracted_agents.append(token.split("=", 1)[1])
+            index += 1
+            continue
+
+        cleaned_argv.append(token)
+        index += 1
+
+    parser = build_parser()
+    args = parser.parse_args(cleaned_argv)
+    args.agent_values = extracted_agents
+    args = normalize_agent_args(parser, args)
+    return parser, args
+
+
 def get_category_for_skill(skill_name: str) -> str:
     # Detect exact search within quotes
     exact_match = False
@@ -840,6 +932,117 @@ def migrate_skills():
     return category_counts
 
 
+def get_pointer_metadata_path(pointer_dir: Path) -> Path:
+    return pointer_dir / POINTER_METADATA_FILENAME
+
+
+def load_pointer_metadata(pointer_dir: Path) -> Optional[dict]:
+    metadata_path = get_pointer_metadata_path(pointer_dir)
+    if not metadata_path.is_file():
+        return None
+
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if not isinstance(data, dict):
+        return None
+    return data
+
+
+def write_pointer_metadata(pointer_dir: Path, category: str) -> None:
+    payload = {
+        "managed_by": POINTER_MANAGER_NAME,
+        "category": category,
+        "agent": CONFIG["agent_key"],
+        "version": POINTER_METADATA_VERSION,
+    }
+    with open(get_pointer_metadata_path(pointer_dir), "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=True)
+        f.write("\n")
+
+
+def get_pointer_content(category: str, count: int) -> str:
+    template_key = CONFIG["template_key"]
+    pointer_template = POINTER_TEMPLATES[template_key]
+    cat_title = category.replace("-", " ").title()
+    library_path = str((CONFIG["hidden_library_dir"] / category).absolute()).replace(
+        "\\", "/"
+    )
+    return pointer_template.format(
+        category_name=category,
+        category_title=cat_title,
+        count=count,
+        library_path=library_path,
+    )
+
+
+def looks_like_legacy_managed_pointer(pointer_dir: Path, category: str) -> bool:
+    skill_path = pointer_dir / "SKILL.md"
+    if not skill_path.is_file():
+        return False
+
+    try:
+        content = skill_path.read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+    category_title = category.replace("-", " ").title()
+    library_path = str((CONFIG["hidden_library_dir"] / category).absolute()).replace(
+        "\\", "/"
+    )
+
+    required_substrings = [
+        f"name: {category}-category-pointer",
+        f"# {category_title} Capability Library",
+        f"**Hidden Library Path:** `{library_path}`",
+        "*Reminder: Do not guess best practices or blindly search GitHub. Always consult your local library files first.*",
+    ]
+    if CONFIG["template_key"] == "cursor":
+        required_substrings.extend(
+            [
+                "use `Glob` to browse the hidden library",
+                "`Grep` if you need to search skill names or content",
+            ]
+        )
+    else:
+        required_substrings.extend(
+            [
+                "you MUST use your file reading tools",
+                "`list_dir` and `view_file` or `read_file`",
+            ]
+        )
+
+    if not all(snippet in content for snippet in required_substrings):
+        return False
+
+    count_pattern = re.compile(
+        rf"Indexes \d+ specialized skills for {re.escape(category)}\."
+        if CONFIG["template_key"] == "cursor"
+        else rf"This library contains \d+ specialized skills covering various aspects of {re.escape(category_title)}\."
+    )
+    return bool(count_pattern.search(content))
+
+
+def classify_pointer_dir(pointer_dir: Path, category: str) -> str:
+    metadata = load_pointer_metadata(pointer_dir)
+    if metadata:
+        if (
+            metadata.get("managed_by") == POINTER_MANAGER_NAME
+            and metadata.get("category") == category
+            and metadata.get("agent") == CONFIG["agent_key"]
+        ):
+            return "managed"
+        return "unmanaged"
+
+    if looks_like_legacy_managed_pointer(pointer_dir, category):
+        return "legacy-managed"
+
+    return "unmanaged"
+
+
 def generate_pointers():
     active_skills_dir = CONFIG["active_skills_dir"]
     hidden_library_dir = CONFIG["hidden_library_dir"]
@@ -847,9 +1050,6 @@ def generate_pointers():
     print(
         f"{Colors.BOLD}⚡ Phase 2: Generating Dynamic Category Pointers...{Colors.ENDC}\n"
     )
-
-    template_key = CONFIG["template_key"]
-    pointer_template = POINTER_TEMPLATES[template_key]
 
     created = 0
     updated = 0
@@ -871,23 +1071,20 @@ def generate_pointers():
 
         pointer_name = f"{cat}-category-pointer"
         pointer_dir = active_skills_dir / pointer_name
-        existed = (pointer_dir / "SKILL.md").is_file()
+        existed = pointer_dir.exists()
+        ownership = classify_pointer_dir(pointer_dir, cat) if existed else None
+        if existed and ownership == "unmanaged":
+            print(
+                f"{Colors.WARNING}  ⚠ Skipped {pointer_name}: existing directory is not managed by SkillPointer.{Colors.ENDC}"
+            )
+            continue
+
         pointer_dir.mkdir(parents=True, exist_ok=True)
-
-        cat_title = cat.replace("-", " ").title()
-        library_path = str((hidden_library_dir / cat).absolute()).replace(
-            "\\", "/"
-        )
-
-        content = pointer_template.format(
-            category_name=cat,
-            category_title=cat_title,
-            count=count,
-            library_path=library_path,
-        )
+        content = get_pointer_content(cat, count)
 
         with open(pointer_dir / "SKILL.md", "w", encoding="utf-8") as f:
             f.write(content)
+        write_pointer_metadata(pointer_dir, cat)
 
         if existed:
             updated += 1
@@ -905,16 +1102,20 @@ def generate_pointers():
             continue
         if not folder.name.endswith("-category-pointer"):
             continue
-        if not (folder / "SKILL.md").is_file():
-            continue
 
         cat = folder.name.removesuffix("-category-pointer")
         if cat not in vault_counts:
-            shutil.rmtree(folder)
-            removed += 1
-            print(
-                f"{Colors.WARNING}  ⊖ Removed stale pointer {folder.name} (vault category missing or empty).{Colors.ENDC}"
-            )
+            ownership = classify_pointer_dir(folder, cat)
+            if ownership in {"managed", "legacy-managed"}:
+                shutil.rmtree(folder)
+                removed += 1
+                print(
+                    f"{Colors.WARNING}  ⊖ Removed stale pointer {folder.name} (vault category missing or empty).{Colors.ENDC}"
+                )
+            elif ownership == "unmanaged":
+                print(
+                    f"{Colors.WARNING}  ⚠ Left {folder.name} in place: existing directory is not managed by SkillPointer.{Colors.ENDC}"
+                )
 
     pointer_total = created + updated
     print(
@@ -962,37 +1163,8 @@ def print_complete_message():
     )
 
 
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="SkillPointer Setup - Infinite Context. Zero Token Tax."
-    )
-    parser.add_argument(
-        "--agent",
-        choices=list(AGENT_PROFILES.keys()),
-        help="Target AI agent (skips interactive prompt when provided)",
-    )
-    subparsers = parser.add_subparsers(dest="command")
-    subparsers.add_parser(
-        "install",
-        help="Migrate skills from active dir to vault, then refresh pointers (default)",
-    )
-    subparsers.add_parser(
-        "refresh-pointers",
-        help="Regenerate category pointers from vault (no migration)",
-    )
-    migrate_parser = subparsers.add_parser(
-        "migrate",
-        help="Ingest new skills from active dir into vault",
-    )
-    migrate_parser.add_argument(
-        "--no-refresh-pointers",
-        action="store_true",
-        help="Skip pointer refresh after migration",
-    )
-
-    args = parser.parse_args()
+def main(argv=None):
+    parser, args = parse_cli_args(argv)
     command = args.command or "install"
 
     agent_key = resolve_agent(args.agent)

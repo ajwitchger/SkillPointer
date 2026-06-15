@@ -47,6 +47,7 @@ check:
 verify: check
     {{ python }} setup.py --help
     @just verify-no-agent
+    {{ python }} -m unittest
 
 # Non-interactive runs without --agent must exit 1
 verify-no-agent:
