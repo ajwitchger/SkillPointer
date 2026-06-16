@@ -1,10 +1,10 @@
 #!/usr/bin/env just --justfile
 
-python := "python3"
+python := "python"
 
-# List recipes (default when you run `just` with no arguments)
-default:
-    @just --justfile {{ justfile() }} --list --unsorted
+[private]
+@default:
+    just --justfile {{ justfile() }} --list --unsorted
 
 # Run setup.py; omit agent to get the interactive menu (same as the CLI)
 _run subcommand extra="" agent="":
@@ -40,17 +40,17 @@ migrate agent="":
 migrate-only agent="":
     @just _run migrate --no-refresh-pointers "{{ agent }}"
 
-# Developer checks (no home-dir side effects except --help)
-check:
+_check:
     {{ python }} -m py_compile setup.py
 
+# Developer checks (no home-dir side effects except --help)
 verify: check
     {{ python }} setup.py --help
     @just verify-no-agent
     {{ python }} -m unittest
 
 # Non-interactive runs without --agent must exit 1
-verify-no-agent:
+_verify-no-agent:
     #!/usr/bin/env bash
     set +e
     {{ python }} setup.py < /dev/null
