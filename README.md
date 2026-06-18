@@ -7,9 +7,7 @@
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-  [![OpenCode Compatible](https://img.shields.io/badge/OpenCode-compatible-38bdf8.svg)](https://opencode.ai)
-  [![Claude Code Compatible](https://img.shields.io/badge/Claude%20Code-compatible-38bdf8.svg)](https://docs.anthropic.com/en/docs/claude-code)
-  [![Cursor Compatible](https://img.shields.io/badge/Cursor-compatible-38bdf8.svg)](https://cursor.com)
+  [![AI Dev Agents Compatible](https://img.shields.io/badge/AI%20Dev%20Agents-OpenCode%20%7C%20Claude%20Code%20%7C%20Cursor-38bdf8.svg)](#installation--setup)
 </div>
 
 <br/>

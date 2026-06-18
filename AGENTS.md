@@ -47,3 +47,5 @@ just verify
 ## Local overrides
 
 If you need machine-local or private agent instructions, keep them in `AGENTS.local.md`. That file is intentionally untracked.
+
+Codex review state is also local runtime state. Keep `.codex/review-state.md` and related scratch files untracked unless this repo explicitly documents them as committed source material.

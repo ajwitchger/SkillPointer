@@ -1,0 +1,156 @@
+## Compiled sources
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.war
+*.app
+*.py[cod]
+
+## Packages
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+*.bck
+
+## Logs and databases
+######################
+*.log
+*.log*
+*.sqlite
+results
+*.out
+*.db
+/dataSources/
+/dataSources.local.xml
+
+## Large media files
+######################
+*.mp4
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv
+
+## OS generated files
+######################
+.DS_Store?
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+## IDE generated files
+#######################
+*.classpath
+*.project
+*.settings
+*.idea
+*.swp
+*.iml
+*.ipr
+*.iws
+.idea/
+.idea
+/shelf/
+/workspace.xml
+out/
+/httpRequests/
+!**/src/main/**/out/
+!**/src/test/**/out/
+.vscode/
+
+## Build specific folders
+##########################
+.project/
+.gradle/
+.settings/
+.classpath/
+target
+node_modules/
+target/
+dist/
+coverage/
+build/
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
+.gradle
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+site/
+
+## Yarn Zero-Install Specific
+##############################
+.yarn/*
+!.yarn/cache
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+## Config files
+################
+.*env
+.env*
+!.env.*
+*.local
+*application-secrets.*
+resources/application-secrets.yml
+
+## Terraform
+#############
+**/.terraform/*
+.terraform
+# .tfstate files
+*.tfstate
+*.tfstate.*
+crash.log
+# example.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# !example_override.tf
+# example: *tfplan*
+
+## AI Tools
+##################
+*.agent
+.cursor/
+.cursorrules
+claude_rules
+.ai-agent
+.well-known/skills/
+hooks/
+.agent-hooks/
+AGENTS.local.md
+agents.local.md
+CLAUDE.local.md
+SKILL.local.md
+TOOL.local.md
+MCP.local.md
+
+## Project Specific
+####################
