@@ -41,7 +41,7 @@ migrate-only agent="":
     @just _run migrate --no-refresh-pointers "{{ agent }}"
 
 _check:
-    {{ python }} -m py_compile setup.py
+    {{ python }} -m py_compile setup.py setup_core.py
 
 # Developer checks (no home-dir side effects except --help)
 verify: check

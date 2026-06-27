@@ -46,6 +46,11 @@ class SkillPointerTests(unittest.TestCase):
         self.assertEqual(args.command, "install")
         self.assertEqual(args.agent, "cursor")
 
+    def test_parse_install_agent_codex(self):
+        _, args = setup.parse_cli_args(["install", "--agent", "codex"])
+        self.assertEqual(args.command, "install")
+        self.assertEqual(args.agent, "codex")
+
     def test_parse_migrate_no_refresh(self):
         _, args = setup.parse_cli_args(
             ["migrate", "--agent", "cursor", "--no-refresh-pointers"]
@@ -64,6 +69,32 @@ class SkillPointerTests(unittest.TestCase):
             with self.assertRaises(SystemExit) as exc:
                 setup.main([])
         self.assertEqual(exc.exception.code, 1)
+
+    def test_codex_profile_paths(self):
+        profile = setup.AGENT_PROFILES["codex"]
+        self.assertEqual(profile["label"], "Codex")
+        self.assertEqual(profile["active_skills_dir"], Path.home() / ".agents" / "skills")
+        self.assertEqual(profile["hidden_library_dir"], Path.home() / ".codex-skill-libraries")
+        self.assertEqual(profile["template_key"], "codex")
+        self.assertTrue(profile["bootstrap_skills_dir"])
+
+    def test_codex_pointer_template_mentions_vault_and_not_cursor_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active_dir = root / "active"
+            vault_dir = root / "vault"
+            active_dir.mkdir()
+            vault_dir.mkdir()
+            self.configure_agent(active_dir, vault_dir, agent_key="codex")
+
+            content = setup.get_pointer_content("security", 1)
+
+            self.assertIn("outside Codex's active skill directory", content)
+            self.assertIn("Inspect this local vault path", content)
+            self.assertIn("Find candidate `SKILL.md` files", content)
+            self.assertNotIn("`Glob`", content)
+            self.assertNotIn("`Read`", content)
+            self.assertNotIn("`Grep`", content)
 
     def test_managed_pointer_updated_and_stale_managed_removed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,6 +150,33 @@ class SkillPointerTests(unittest.TestCase):
             self.assertEqual(metadata["managed_by"], setup.POINTER_MANAGER_NAME)
             self.assertEqual(metadata["category"], "security")
             self.assertEqual(metadata["agent"], "cursor")
+
+    def test_legacy_codex_pointer_is_adopted_and_marked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            active_dir = root / "active"
+            vault_dir = root / "vault"
+            active_dir.mkdir()
+            vault_dir.mkdir()
+            self.configure_agent(active_dir, vault_dir, agent_key="codex")
+
+            self.create_skill(vault_dir / "security", "auth-skill")
+            legacy_pointer = active_dir / "security-category-pointer"
+            legacy_pointer.mkdir()
+            (legacy_pointer / "SKILL.md").write_text(
+                setup.get_pointer_content("security", 1), encoding="utf-8"
+            )
+
+            setup.generate_pointers()
+
+            metadata = json.loads(
+                (legacy_pointer / setup.POINTER_METADATA_FILENAME).read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(metadata["managed_by"], setup.POINTER_MANAGER_NAME)
+            self.assertEqual(metadata["category"], "security")
+            self.assertEqual(metadata["agent"], "codex")
 
     def test_unmanaged_pointer_is_neither_overwritten_nor_deleted(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -179,6 +237,7 @@ class SkillPointerTests(unittest.TestCase):
     def test_install_bat_supports_optional_agent_and_interactive_flow(self):
         content = Path("Install.bat").read_text(encoding="utf-8")
         self.assertIn('if /I "%~1"=="cursor"', content)
+        self.assertIn('if /I "%~1"=="codex"', content)
         self.assertIn("python setup.py install --agent %~1", content)
         self.assertIn("python setup.py install", content)
 
