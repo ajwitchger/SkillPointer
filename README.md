@@ -175,6 +175,19 @@ Without an argument it keeps the console visible and runs the normal interactive
 | Added skills directly into the vault | `refresh-pointers` |
 | Emptied or removed a vault category | `refresh-pointers` (stale pointers are removed automatically) |
 
+### Verification
+
+Repository verification uses `just verify`, which runs:
+
+```bash
+python -m py_compile setup.py setup_core.py
+python setup.py --help
+python setup.py --agent codex --help
+python -m unittest
+```
+
+It also checks that a non-interactive run without `--agent` exits `1`. The Codex regression tests override `AGENT_PROFILES["codex"]` with temporary active/vault paths, so the suite does not touch `~/.agents/skills` or `~/.codex-skill-libraries`.
+
 ### Step 2: Test It!
 
 Start your AI agent and ask it to fetch a specific skill:

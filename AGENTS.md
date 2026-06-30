@@ -46,8 +46,11 @@ just verify
 
 - `python -m py_compile setup.py setup_core.py`
 - `python setup.py --help`
+- `python setup.py --agent codex --help`
 - the non-interactive no-agent exit check
 - `python -m unittest`
+
+Codex command-path tests patch `AGENT_PROFILES["codex"]` to temporary active/vault paths, so verification does not mutate `~/.agents/skills` or `~/.codex-skill-libraries`.
 
 ## Local overrides
 
