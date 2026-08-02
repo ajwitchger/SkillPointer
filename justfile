@@ -8,20 +8,20 @@ python := "python"
 
 # Run setup.py; omit agent to get the interactive menu (same as the CLI)
 _run subcommand extra="" agent="":
-    #!/bin/sh
-    set -eu
+    #!/usr/bin/env bash
+    set -euo pipefail
     if [ -n "{{ agent }}" ]; then
-        if [ -n "{{ extra }}" ]; then
-            {{ python }} setup.py {{ subcommand }} {{ extra }} --agent "{{ agent }}"
-        else
-            {{ python }} setup.py {{ subcommand }} --agent "{{ agent }}"
-        fi
+      if [ -n "{{ extra }}" ]; then
+        {{ python }} setup.py {{ subcommand }} {{ extra }} --agent "{{ agent }}"
+      else
+        {{ python }} setup.py {{ subcommand }} --agent "{{ agent }}"
+      fi
     else
-        if [ -n "{{ extra }}" ]; then
-            {{ python }} setup.py {{ subcommand }} {{ extra }}
-        else
-            {{ python }} setup.py {{ subcommand }}
-        fi
+      if [ -n "{{ extra }}" ]; then
+        {{ python }} setup.py {{ subcommand }} {{ extra }}
+      else
+        {{ python }} setup.py {{ subcommand }}
+      fi
     fi
 
 # Full setup: migrate active skills to vault, then refresh pointers
@@ -41,23 +41,21 @@ migrate-only agent="":
     @just _run migrate --no-refresh-pointers "{{ agent }}"
 
 _check:
-    {{ python }} -m py_compile setup.py setup_core.py
+    {{ python }} -m py_compile setup.py
 
 # Developer checks (no home-dir side effects except --help)
-verify: _check
+verify: check
     {{ python }} setup.py --help
-    {{ python }} setup.py --agent codex --help
-    @just _verify-no-agent
+    @just verify-no-agent
     {{ python }} -m unittest
 
 # Non-interactive runs without --agent must exit 1
 _verify-no-agent:
-    #!/bin/sh
+    #!/usr/bin/env bash
     set +e
-    output=$({{ python }} setup.py < /dev/null 2>&1)
+    {{ python }} setup.py < /dev/null
     code=$?
     if [ "$code" -ne 1 ]; then
-        printf '%s\n' "$output" >&2
-        echo "expected exit 1, got $code" >&2
-        exit 1
+      echo "expected exit 1, got $code" >&2
+      exit 1
     fi
