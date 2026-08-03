@@ -44,9 +44,9 @@ _check:
     {{ python }} -m py_compile setup.py
 
 # Developer checks (no home-dir side effects except --help)
-verify: check
+verify: _check
     {{ python }} setup.py --help
-    @just verify-no-agent
+    @just _verify-no-agent
     {{ python }} -m unittest
 
 # Non-interactive runs without --agent must exit 1
